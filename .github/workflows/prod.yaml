@@ -1,0 +1,153 @@
+name: CI/CD Staging
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  buildAndPublishToECR:
+    name: Build and Publish to AWS ECR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.STAGING_AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build, tag, and push image to Amazon ECR
+        uses: docker/build-push-action@v6
+        env:
+          AWS_ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_ECR_REPOSITORY: ${{ secrets.STAGING_AWS_ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: '${{ env.AWS_ECR_REGISTRY }}/${{ env.AWS_ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}'
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+
+  deployToEC2:
+    name: Deploy to AWS EC2
+    needs: buildAndPublishToECR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.STAGING_AWS_DEFAULT_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.STAGING_AWS_DEFAULT_REGION }}
+          AWS_S3_BUCKET: ${{ secrets.STAGING_AWS_S3_BUCKET }}
+          AWS_ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_ECR_REPOSITORY: ${{ secrets.STAGING_AWS_ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+          PORT: ${{ secrets.STAGING_PORT }}
+          DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+          DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          JWT_SECRET: ${{secrets.JWT_SECRET}}
+          SESSION_SECRET: ${{secrets.SESSION_SECRET}}
+          ACCESS_TOKEN_VALIDITY_DURATION_IN_SEC: ${{secrets.ACCESS_TOKEN_VALIDITY_DURATION_IN_SEC}}
+          BUCKET_AWS_ACCESS_KEY_ID: ${{secrets.BUCKET_AWS_ACCESS_KEY_ID}}
+          BUCKET_AWS_SECRET_ACCESS_KEY: ${{secrets.BUCKET_AWS_SECRET_ACCESS_KEY}}
+          BUCKET_AWS_DEFAULT_REGION: ${{secrets.BUCKET_AWS_DEFAULT_REGION}}
+          BUCKET_AWS_S3_BUCKET: ${{secrets.BUCKET_AWS_S3_BUCKET}}
+          DB_TYPE: ${{secrets.DB_TYPE}}
+          DB_USERNAME: ${{secrets.DB_USERNAME}}
+          DB_DATABASE: ${{secrets.DB_DATABASE}}
+          DB_PORT: ${{secrets.DB_PORT}}
+          CORS_ORIGIN: ${{secrets.CORS_ORIGIN}}
+          RUN_MIGRATIONS: ${{secrets.RUN_MIGRATIONS}}
+        with:
+          host: ${{ secrets.STAGING_AWS_EC2_HOST }}
+          username: ${{ secrets.STAGING_AWS_EC2_USERNAME }}
+          key: ${{ secrets.STAGING_AWS_EC2_SSH_KEY }}
+          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_DEFAULT_REGION,AWS_S3_BUCKET,AWS_ECR_REGISTRY,AWS_ECR_REPOSITORY,IMAGE_TAG,PORT,DB_HOST,DB_PASSWORD,REDIS_PASSWORD,SESSION_SECRET,SMTP_HOST,SMTP_USER,SMTP_PASSWORD,SMTP_FROM,CERTIFICATE_DOMAIN,CERTIFICATE_EMAIL,JWT_SECRET,SESSION_SECRET,ACCESS_TOKEN_VALIDITY_DURATION_IN_SEC,BUCKET_AWS_ACCESS_KEY_ID,BUCKET_AWS_SECRET_ACCESS_KEY,BUCKET_AWS_DEFAULT_REGION,BUCKET_AWS_S3_BUCKET,DB_TYPE,DB_DATABASE,DB_USERNAME,DB_PORT,CORS_ORIGIN,RUN_MIGRATIONS
+          script: |
+            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_REGISTRY
+            docker stop backend redis traefik
+            docker rm backend redis traefik
+            docker rmi $(docker images $AWS_ECR_REGISTRY/$AWS_ECR_REPOSITORY:* -q)
+            docker pull $AWS_ECR_REGISTRY/$AWS_ECR_REPOSITORY:$IMAGE_TAG
+            docker run -d \
+                --name backend \
+                --network host \
+                --restart unless-stopped \
+                --label "traefik.enable=true" \
+                --label 'traefik.http.routers.backend.rule=PathPrefix(`/`)' \
+                --label "traefik.http.services.backend.loadbalancer.server.port=$PORT" \
+                -e NODE_ENV=staging \
+                -e PORT \
+                -e DB_HOST \
+                -e DB_PASSWORD \
+                -e AWS_ACCESS_KEY_ID \
+                -e AWS_SECRET_ACCESS_KEY \
+                -e AWS_DEFAULT_REGION \
+                -e AWS_S3_BUCKET \
+                -e JWT_SECRET \
+                -e SESSION_SECRET \
+                -e ACCESS_TOKEN_VALIDITY_DURATION_IN_SEC \
+                -e BUCKET_AWS_ACCESS_KEY_ID \
+                -e BUCKET_AWS_SECRET_ACCESS_KEY \
+                -e BUCKET_AWS_DEFAULT_REGION \
+                -e BUCKET_AWS_S3_BUCKET \
+                -e DB_TYPE \
+                -e DB_USERNAME \
+                -e DB_DATABASE \
+                -e DB_PORT \
+                -e CORS_ORIGIN \
+                -e RUN_MIGRATIONS \
+                $AWS_ECR_REGISTRY/$AWS_ECR_REPOSITORY:$IMAGE_TAG
+            docker run -d \
+                --name redis \
+                --network host \
+                --restart unless-stopped \
+                --mount source=redis-data,target=/data \
+                -e REDIS_ARGS="--requirepass $REDIS_PASSWORD --save 60 1 --loglevel warning" \
+                redis/redis-stack-server
+            docker run -d \
+                --name traefik \
+                --network host \
+                --restart unless-stopped \
+                -v letsencrypt:/letsencrypt \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                traefik:v3.0 \
+                --log.level=INFO \
+                --providers.docker \
+                --providers.docker.exposedbydefault=false \
+                --entrypoints.http.address=:80 \
+                --entrypoints.https.address=:443 \
+                --entrypoints.https.http.tls.certResolver=letsencrypt \
+                --entrypoints.https.http.tls.domains[0].main=$CERTIFICATE_DOMAIN \
+                --certificatesresolvers.letsencrypt.acme.tlschallenge=true \
+                --certificatesresolvers.letsencrypt.acme.email=$CERTIFICATE_EMAIL \
+                --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+                # --entrypoints.http.http.redirections.entryPoint.to=https \
+                # --entrypoints.http.http.redirections.entryPoint.scheme=https \

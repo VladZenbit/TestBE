@@ -1,0 +1,8 @@
+.lintstagedrc
+node_modules
+src/migrations
+pgdata
+infra
+!.vscode
+test
+

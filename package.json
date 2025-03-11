@@ -1,0 +1,121 @@
+{
+  "name": "movie",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "deploy": "npm run start:prod",
+    "migration:create": "npx typeorm-ts-node-commonjs migration:create ./src/migrations/%npm_config_fileName%",
+    "migration:generate": "npx typeorm-ts-node-commonjs migration:generate ./src/migrations/%npm_config_fileName% -d ./src/configs/data_source.ts",
+    "migration:run": "npx typeorm-ts-node-commonjs migration:run -d ./src/configs/data_source.ts",
+    "migration:revert": "npx typeorm-ts-node-commonjs migration:revert -d ./src/configs/data_source.ts",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.{ts,js,json,yalm,yml}\"",
+    "lint:fix": "eslint \"{src,apps,libs,test}/**/*.{ts,js,json,yalm,yml}\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "prepare": "husky && husky install"
+  },
+  "dependencies": {
+    "@nanogiants/nestjs-swagger-api-exception-decorator": "^1.6.11",
+    "@nestjs/axios": "^3.0.3",
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/config": "^3.2.3",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/jwt": "^10.2.0",
+    "@nestjs/passport": "^10.0.3",
+    "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/swagger": "^7.3.1",
+    "@nestjs/typeorm": "^10.0.2",
+    "@types/bcrypt": "^5.0.2",
+    "@types/express-session": "^1.18.0",
+    "bcryptjs": "^2.4.3",
+    "change-case": "^5.4.4",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "date-fns": "^3.6.0",
+    "dotenv": "^16.4.5",
+    "express-session": "^1.18.0",
+    "nodemailer": "^6.9.14",
+    "otpauth": "^9.3.2",
+    "parse-duration": "^1.1.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "passport-local": "^1.0.0",
+    "pg": "^8.12.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.20",
+    "uuid": "^10.0.0",
+    "aws-sdk": "^2.1240.0"
+  },
+  "devDependencies": {
+    "@darraghor/eslint-plugin-nestjs-typed": "^5.0.18",
+    "@nestjs/cli": "^10.0.0",
+    "@nestjs/schematics": "^10.0.0",
+    "@nestjs/testing": "^10.0.0",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.2",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^20.3.1",
+    "@types/supertest": "^6.0.0",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.42.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-airbnb-typescript": "^18.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-plugin-simple-import-sort": "^12.1.0",
+    "eslint-plugin-typesafe": "^0.5.2",
+    "husky": "^8.0.0",
+    "jest": "^29.5.0",
+    "lint-staged": "^15.2.5",
+    "prettier": "^3.0.0",
+    "source-map-support": "^0.5.21",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.0",
+    "ts-loader": "^9.4.3",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.1.3",
+    "sharp": "^0.33.5",
+    "zod": "^3.23.8",
+    "zod-validation-error": "^3.4.0",
+    "@aws-sdk/client-s3": "^3.677.0",
+    "@aws-sdk/s3-request-presigner": "^3.677.0"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    }
+  },
+  "lint-staged": {
+    "**/*.{ts}": [
+      "npm run lint",
+      "npm run format"
+    ]
+  }
+}
