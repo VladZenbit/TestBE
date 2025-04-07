@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsNotEmpty } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class SignInUserRequestBodyDto {
   @ApiProperty({
@@ -16,4 +16,8 @@ export class SignInUserRequestBodyDto {
   @IsNotEmpty({ message: 'Password cannot be empty' })
   @IsString({ message: 'Password should be of type string' })
   password: string;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  rememberMe?: boolean;
 }

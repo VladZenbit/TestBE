@@ -13,7 +13,6 @@ import { MovieModule } from './modules/movie/movie.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { UsersModule } from './modules/users/users.module';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({

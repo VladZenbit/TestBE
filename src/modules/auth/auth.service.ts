@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+
 import { SALT_LENGTH } from 'src/common/constants';
 
 import { UserProfileDto } from '../users/dto/user-profile.dto';
 import { UsersService } from '../users/users.service';
-
 import { AccessTokenDto } from './dto/access-token.dto';
 import { SignInUserRequestBodyDto } from './dto/sign-in-user.dto';
 import { PasswordIsNotValidException } from './exceptions/password-is-not-valid.exception';
@@ -19,6 +20,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   async authorizeUser(
@@ -63,7 +65,7 @@ export class AuthService {
     return this.singInUserWithJWT(createdUser);
   }
 
-  async singInUserWithJWT(user: UserProfileDto): Promise<AccessTokenDto> {
+  async singInUserWithJWT(user: UserProfileDto, rememberMe?: boolean): Promise<AccessTokenDto> {
     const userProfile: UserProfileDto = {
       email: user.email,
       id: user.id,
@@ -71,14 +73,19 @@ export class AuthService {
       lastName: user.lastName,
     };
 
+    const shortLived = this.configService.get<number>('ACCESS_TOKEN_VALIDITY_DURATION_IN_SEC');
+    const longLived = this.configService.get<number>('ACCESS_TOKEN_REMEMBER_ME_VALIDITY_DURATION_IN_SEC');
+
+    const expiresIn = rememberMe ? longLived : shortLived;
+
     return {
-      access_token: this.jwtService.sign(userProfile),
+      access_token: this.jwtService.sign(userProfile, { expiresIn }),
     };
   }
 
   async signInUser(signInBody: SignInPayload): Promise<AccessTokenDto> {
     const user = await this.authorizeUser(signInBody);
 
-    return this.singInUserWithJWT(user);
+    return this.singInUserWithJWT(user, signInBody.rememberMe);
   }
 }
